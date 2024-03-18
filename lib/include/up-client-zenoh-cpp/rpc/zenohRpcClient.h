@@ -25,70 +25,122 @@
 #ifndef _ZENOH_RPC_CLIENT_H_
 #define _ZENOH_RPC_CLIENT_H_
 
+#include <condition_variable>
 #include <up-cpp/rpc/RpcClient.h>
 #include <up-cpp/utils/ThreadPool.h>
+#include <up-cpp/transport/datamodel/UPayload.h>
 #include <up-core-api/ustatus.pb.h>
 #include <up-core-api/uri.pb.h>
 #include <zenoh.h>
 
-using namespace std;
-using namespace uprotocol::utransport;
-using namespace uprotocol::utils;
-using namespace uprotocol::v1;
+namespace uprotocol::rpc {
 
-class ZenohRpcClient : public RpcClient {
+    struct ZenohRpcClientConfig
+    {
+        size_t maxQueueSize;
+        size_t maxConcurrentRequests;
+    };
 
-    public:
+    class ZenohRpcClient : public uprotocol::rpc::RpcClient {
 
-        ZenohRpcClient(const ZenohRpcClient&) = delete;
-        ZenohRpcClient& operator=(const ZenohRpcClient&) = delete;
+        public:
 
-        /**
-        * The API provides an instance of the zenoh RPC client
-        * @return instance of ZenohUTransport
-        */
-        static ZenohRpcClient& instance(void) noexcept;
+            ZenohRpcClient(const ZenohRpcClient&) = delete;
+            ZenohRpcClient& operator=(const ZenohRpcClient&) = delete;
 
-        /**
-        * init the zenohRpcClient 
-        * @return Returns OK on SUCCESS and ERROR on failure
-        */
-        UStatus init() noexcept;
+            /**
+            * The API provides an instance of the zenoh RPC client
+            * @return instance of ZenohUTransport
+            */
+            static ZenohRpcClient& instance(void) noexcept;
 
-        /**
-        * Terminates the zenoh RPC client  - the API should be called by any class that called init
-        * @return Returns OK on SUCCESS and ERROR on failure
-        */
-        UStatus term() noexcept; 
+            /**
+            * init the zenohRpcClient 
+            * @return Returns OK on SUCCESS and ERROR on failure
+            */
+            uprotocol::v1::UStatus init(ZenohRpcClientConfig *config = nullptr) noexcept;
 
-        /**
-        * Support for RPC method invocation.
-        * @param topic topic of the method to be invoked (i.e. the name of the API we are calling).
-        * @param payload The request message to be sent to the server.
-        * @param attributes Metadata for the method invocation (i.e. priority, timeout, etc.)
-        * @return Returns the CompletableFuture with the result or exception.
-        */
-        std::future<UPayload> invokeMethod(const UUri &uri, 
-                                           const UPayload &payload, 
-                                           const UAttributes &attributes) noexcept;
-    private:
+            /**
+            * Terminates the zenoh RPC client  - the API should be called by any class that called init
+            * @return Returns OK on SUCCESS and ERROR on failure
+            */
+            uprotocol::v1::UStatus term() noexcept; 
 
-        ZenohRpcClient() {}
+            /**
+            * API for clients to invoke a method (send an RPC request) and receive the response (the returned 
+            * {@link CompletionStage} {@link UPayload}. <br>
+            * Client will set method to be the URI of the method they want to invoke, 
+            * payload to the request message, and attributes with the various metadata for the 
+            * method invocation.
+            * @param topic The method URI to be invoked, ex (long form): /example.hello_world/1/rpc.SayHello.
+            * @param payload The request message to be sent to the server.
+            * @param options RPC method invocation call options, see {@link CallOptions}
+            * @return Returns the future 
+            */
+            std::future<uprotocol::rpc::RpcResponse> invokeMethod(const uprotocol::v1::UUri &topic, 
+                                                                  const uprotocol::utransport::UPayload &payload, 
+                                                                  const uprotocol::v1::CallOptions &options) noexcept;
 
-        static UPayload handleReply(z_owned_reply_channel_t *channel);
-        
-        /* zenoh session handle*/
-        z_owned_session_t session_;
-        /* how many times uTransport was initialized*/
-        atomic_uint32_t refCount_ = 0;
-        
-        std::mutex mutex_;
-        std::shared_ptr<ThreadPool> threadPool_;
+            /**
+            * API for clients to invoke a method (send an RPC request) and receive the response (the returned 
+            * {@link CompletionStage} {@link UPayload}. <br>
+            * Client will set method to be the URI of the method they want to invoke, 
+            * payload to the request message, and attributes with the various metadata for the 
+            * method invocation.
+            * @param methodUri The method URI to be invoked, ex (long form): /example.hello_world/1/rpc.SayHello.
+            * @param requestPayload The request message to be sent to the server.
+            * @param options RPC method invocation call options, see {@link CallOptions}
+            * @param callback that will be called once the future is complete
+            * @return UStatus
+            */
+            uprotocol::v1::UStatus invokeMethod(const uprotocol::v1::UUri &topic,
+                                                const uprotocol::utransport::UPayload &payload,
+                                                const uprotocol::v1::CallOptions &options,
+                                                const uprotocol::utransport::UListener &callback) noexcept;
 
-        static constexpr auto requestTimeoutMs_ = 5000;
-        static constexpr auto queueSize_ = size_t(20);
-        static constexpr auto maxNumOfCuncurrentRequests_ = size_t(2);
+            /**
+             * get the number of max concurrent request 
+             * @return number of concurrent requests
+            */
+            size_t getMaxConcurrentRequests() {
+                return maxNumOfCuncurrentRequests_;
+            }
+            
+            /**
+             * get queue size
+             * @return queue size
+            */
+            size_t getQueueSize() {
+                return queueSize_;
+            }
 
-};
+        private:
+
+           ZenohRpcClient() {}
+
+           std::future<uprotocol::rpc::RpcResponse> invokeMethodInternal(const uprotocol::v1::UUri &topic,
+                                                                         const uprotocol::utransport::UPayload &payload,
+                                                                         const uprotocol::v1::CallOptions &options,
+                                                                         const uprotocol::utransport::UListener *callback = nullptr) noexcept;
+
+            static uprotocol::rpc::RpcResponse handleReply(z_owned_reply_channel_t *channel, 
+                                                           const uprotocol::utransport::UListener *callback = nullptr) noexcept;
+                        
+            /* zenoh session handle*/
+            z_owned_session_t session_;
+            /* how many times uTransport was initialized*/
+            atomic_uint32_t refCount_ = 0;
+            
+            std::mutex mutex_;
+            std::shared_ptr<uprotocol::utils::ThreadPool> threadPool_;
+
+            static constexpr auto requestTimeoutMs_ = 5000;
+            static constexpr auto queueSizeDefault_ = size_t(20);
+            static constexpr auto maxNumOfCuncurrentRequestsDefault_ = size_t(2);
+
+            size_t queueSize_ = queueSizeDefault_;
+            size_t maxNumOfCuncurrentRequests_ = maxNumOfCuncurrentRequestsDefault_;
+    };
+}
 
 #endif /*_ZENOH_RPC_CLIENT_H_*/
