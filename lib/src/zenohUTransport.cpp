@@ -153,11 +153,9 @@ UStatus ZenohUTransport::term() noexcept {
     return status;
 }
 
-UStatus ZenohUTransport::send(const UUri &uri,
-                              const UPayload &payload,
+UStatus ZenohUTransport::send(const UPayload &payload,
                               const UAttributes &attributes) noexcept {
     UStatus status;
-
     if (0 == refCount_) {
         spdlog::error("ZenohUTransport is not initialized");
         status.set_code(UCode::UNAVAILABLE);
@@ -170,20 +168,20 @@ UStatus ZenohUTransport::send(const UUri &uri,
         return status;
     }
 
-    if (false == isRPCMethod(uri.resource())) {
-        status.set_code(sendPublish(uri, payload, attributes));
+    if (false == isRPCMethod(attributes.source().resource())) {
+        status.set_code(sendPublish(payload, attributes));
     } else {
         status.set_code(sendQueryable(payload, attributes));
     }
 
     return status;
 }
-UCode ZenohUTransport::sendPublish(const UUri &uri, 
-                                   const UPayload &payload,
+UCode ZenohUTransport::sendPublish(const UPayload &payload,
                                    const UAttributes &attributes) noexcept {
     UCode status = UCode::UNAVAILABLE;
-
+    // using namespace std;
     do {
+        auto uri = attributes.source();
         if (UMessageType::UMESSAGE_TYPE_PUBLISH != attributes.type()) {
             spdlog::error("Wrong message type = {}", static_cast<int>(attributes.type()));
             return UCode::INVALID_ARGUMENT;
@@ -192,7 +190,6 @@ UCode ZenohUTransport::sendPublish(const UUri &uri,
         /* get hash and check if the publisher for the URI is already exists */
         auto uriHash = std::hash<std::string>{}(LongUriSerializer::serialize(uri));
         auto handleInfo = pubHandleMap_.find(uriHash);
-
         z_owned_publisher_t pub;
 
         /* check if the publisher exists */
@@ -202,8 +199,9 @@ UCode ZenohUTransport::sendPublish(const UUri &uri,
             if (handleInfo != pubHandleMap_.end()) {
                 pub = handleInfo->second;
             } else {
-
                 pub = z_declare_publisher(z_loan(session_), z_keyexpr(std::to_string(uriHash).c_str()), nullptr);
+                // cout << "called z_declare_publisher and got " << pub._0[0] << ' ' << pub._0[1] << ' ' << pub._0[2] << ' ' << pub._0[3] << ' ' << pub._0[4] << pub._0[5] << ' ' << pub._0[6] << endl;
+
                 if (false == z_check(pub)) {
                     spdlog::error("Unable to declare Publisher for key expression!");
                     break;
@@ -231,7 +229,13 @@ UCode ZenohUTransport::sendPublish(const UUri &uri,
         z_bytes_map_insert_by_alias(&map, z_bytes_new("attributes"), attrBytes);
     
         // Publish the message
+        // cout << "calling z_publisher_put uri=" << LongUriSerializer::serialize(attributes.source())
+        //     << " hash=" << uriHash
+        //     << " pub=" << pub._0[0] << ' ' << pub._0[1] << ' ' << pub._0[2] << ' ' << pub._0[3] << ' ' << pub._0[4] << pub._0[5] << ' ' << pub._0[6]
+        //     << " size=" << payload.size()
+        //     << endl;
         if (0 != z_publisher_put(z_loan(pub), payload.data(), payload.size(), &options)) {
+            // cout << "z_publiusher_put failed" << endl;
             spdlog::error("z_publisher_put failed");
             z_drop(z_move(map));
             break;

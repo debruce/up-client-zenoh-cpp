@@ -49,7 +49,7 @@ class RpcServer : public UListener {
             status.set_code(UCode::OK);
             
             UAttributesBuilder builder(message.attributes().id(), UMessageType::UMESSAGE_TYPE_RESPONSE, UPriority::UPRIORITY_CS0);
-
+            builder.setSource(rpcUri);
             UAttributes responseAttributes = builder.build();
 
             if (nullptr != message.payload().data()) {
@@ -57,10 +57,10 @@ class RpcServer : public UListener {
                 std::string cmd(message.payload().data(), message.payload().data() + message.payload().size());
 
                 if ("No Response" != cmd) {
-                    return ZenohUTransport::instance().send(rpcUri, message.payload(), responseAttributes);
+                    return ZenohUTransport::instance().send(message.payload(), responseAttributes);
                 }
             } else {
-                 return ZenohUTransport::instance().send(rpcUri, message.payload(), responseAttributes);
+                 return ZenohUTransport::instance().send(message.payload(), responseAttributes);
             }
 
                                 
