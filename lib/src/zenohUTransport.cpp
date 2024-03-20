@@ -518,7 +518,7 @@ void ZenohUTransport::SubHandler(const z_sample_t* sample, void* arg) {
     UMessage message(payload, attributes);
 
     // Pass the parsed headers and payload to the listener's onReceive method
-    if (UCode::OK != listener->onReceive(message).code()) {
+    if (UCode::OK != (*listener)(message).code()) {
        spdlog::error("listener->onReceive failed");
        /* TODO handle error */
     }
@@ -565,7 +565,7 @@ void ZenohUTransport::QueryHandler(const z_query_t *query, void *arg) {
 
     UMessage message(payload, attributes);
 
-    if (UCode::OK != listener->onReceive(message).code()) {
+    if (UCode::OK != (*listener)(message).code()) {
        /*TODO error handling*/
        spdlog::error("onReceive failure");
        return;

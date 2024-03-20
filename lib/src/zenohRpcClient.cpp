@@ -324,7 +324,7 @@ RpcResponse ZenohRpcClient::handleReply(z_owned_reply_channel_t *channel,
 
     /* TODO - how to send an error to the user*/
     if ((nullptr != callback) && (UCode::OK == rpcResponse.status.code())) {
-        callback->onReceive(rpcResponse.message);
+        (*callback)(rpcResponse.message);
     }
 
     return rpcResponse;

@@ -38,50 +38,90 @@ using namespace uprotocol::rpc;
 UUri rpcUri = LongUriSerializer::deserialize("/test_rpc.app/1/rpc.handler");
 UUri rpcNoServerUri = LongUriSerializer::deserialize("/test_rpc.app/1/rpc.noServer");
 
-class RpcServer : public UListener {
+// class RpcServer : public UListener {
 
-     public:
+//      public:
 
-        UStatus onReceive(UMessage &message) const override {
+//         UStatus onReceive(UMessage &message) const override {
 
-            UStatus status;
+//             UStatus status;
 
-            status.set_code(UCode::OK);
+//             status.set_code(UCode::OK);
             
-            UAttributesBuilder builder(message.attributes().id(), UMessageType::UMESSAGE_TYPE_RESPONSE, UPriority::UPRIORITY_CS0);
-            builder.setSource(rpcUri);
-            UAttributes responseAttributes = builder.build();
+//             UAttributesBuilder builder(message.attributes().id(), UMessageType::UMESSAGE_TYPE_RESPONSE, UPriority::UPRIORITY_CS0);
+//             builder.setSource(rpcUri);
+//             UAttributes responseAttributes = builder.build();
 
-            if (nullptr != message.payload().data()) {
+//             if (nullptr != message.payload().data()) {
 
-                std::string cmd(message.payload().data(), message.payload().data() + message.payload().size());
+//                 std::string cmd(message.payload().data(), message.payload().data() + message.payload().size());
 
-                if ("No Response" != cmd) {
-                    return ZenohUTransport::instance().send(message.payload(), responseAttributes);
-                }
-            } else {
-                 return ZenohUTransport::instance().send(message.payload(), responseAttributes);
-            }
+//                 if ("No Response" != cmd) {
+//                     return ZenohUTransport::instance().send(message.payload(), responseAttributes);
+//                 }
+//             } else {
+//                  return ZenohUTransport::instance().send(message.payload(), responseAttributes);
+//             }
 
                                 
-            return status;
+//             return status;
+//         }
+// };
+
+struct RpcServer {
+    UStatus operator()(UMessage &message) {
+
+        UStatus status;
+
+        status.set_code(UCode::OK);
+        
+        UAttributesBuilder builder(message.attributes().id(), UMessageType::UMESSAGE_TYPE_RESPONSE, UPriority::UPRIORITY_CS0);
+        builder.setSource(rpcUri);
+        UAttributes responseAttributes = builder.build();
+
+        if (nullptr != message.payload().data()) {
+
+            std::string cmd(message.payload().data(), message.payload().data() + message.payload().size());
+
+            if ("No Response" != cmd) {
+                return ZenohUTransport::instance().send(message.payload(), responseAttributes);
+            }
+        } else {
+                return ZenohUTransport::instance().send(message.payload(), responseAttributes);
         }
+
+                            
+        return status;
+    }
 };
 
-class ResponseListener : public UListener {
+// class ResponseListener : public UListener {
 
-     public:
+//      public:
 
-        UStatus onReceive(UMessage &message) const override {
+//         UStatus onReceive(UMessage &message) const override {
 
-            (void) message;
+//             (void) message;
 
-            UStatus status;
+//             UStatus status;
 
-            status.set_code(UCode::OK);
+//             status.set_code(UCode::OK);
            
-            return status;
-        }
+//             return status;
+//         }
+// };
+
+struct ResponseListener {
+    UStatus operator()(UMessage &message) {
+
+        (void) message;
+
+        UStatus status;
+
+        status.set_code(UCode::OK);
+        
+        return status;
+    }
 };
 
 class TestRPcClient : public ::testing::Test {
