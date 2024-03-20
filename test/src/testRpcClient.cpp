@@ -69,7 +69,7 @@ UUri rpcNoServerUri = LongUriSerializer::deserialize("/test_rpc.app/1/rpc.noServ
 // };
 
 struct RpcServer {
-    UStatus operator()(UMessage &message) {
+    UStatus operator()(const UMessage &message) {
 
         UStatus status;
 
@@ -112,7 +112,7 @@ struct RpcServer {
 // };
 
 struct ResponseListener {
-    UStatus operator()(UMessage &message) {
+    UStatus operator()(const UMessage &message) {
 
         (void) message;
 
