@@ -37,11 +37,19 @@ using namespace uprotocol::uuid;
 using namespace uprotocol::v1;
 using namespace uprotocol::utransport;
 
+//
+// The following two functions make std::function's equals compareable.
+// This allows the listenerVector_ to contain std::functions instead of pointers.
+// This makes the code more readable, and reduces chance for pointer errors.
+//
 template<typename T, typename... U>
-static size_t funcTargetAddress(std::function<T(U...)> f) {
+static void* funcTargetAddress(std::function<T(U...)> f) {
+    if (!f) return nullptr;
     typedef T(fnType)(U...);
     fnType ** fnPointer = f.template target<fnType*>();
-    return (size_t) *fnPointer;
+    // cout << "fnPointer=" << fnPointer << endl;
+    if (!fnPointer) return nullptr;
+    return (void*) *fnPointer;
 }
 
 template <typename LHS, typename RHS>
@@ -355,8 +363,8 @@ UStatus ZenohUTransport::registerListener(const UUri &uri,
 
             listenerContainer = listenerMap_[uriHash];
 
-            for (const UListener *existingListenerPtr : listenerContainer->listenerVector_) {
-                if (existingListenerPtr == &listener) {
+            for (auto existingListener : listenerContainer->listenerVector_) {
+                if (existingListener == listener) {
                     spdlog::error("listener already set for URI");
                     status.set_code(UCode::INVALID_ARGUMENT);
                     break;
@@ -399,7 +407,7 @@ UStatus ZenohUTransport::registerListener(const UUri &uri,
             }
             
             listenerContainer->subVector_.push_back(sub);
-            listenerContainer->listenerVector_.push_back(&listener);
+            listenerContainer->listenerVector_.push_back(listener);
 
         // } else if (typeid(listener) == typeid(RequestListener)) {
         } else {
@@ -414,7 +422,7 @@ UStatus ZenohUTransport::registerListener(const UUri &uri,
             }
 
             listenerContainer->queryVector_.push_back(qable);
-            listenerContainer->listenerVector_.push_back(&listener);
+            listenerContainer->listenerVector_.push_back(listener);
         }
 
         listenerMap_[uriHash] = listenerContainer;
@@ -467,12 +475,8 @@ UStatus ZenohUTransport::unregisterListener(const UUri &uri,
     size_t index = 0;
 
     /* need to check with who the listener is associated */
-    for (const UListener *existingListenerPtr : listenerContainer.listenerVector_) {
-        using namespace std;
-        cout << "*existingListenerPtr = " << typeid(*existingListenerPtr).name() << endl;
-        cout << "listener = " << typeid(listener).name() << endl;
-
-        if (&listener == existingListenerPtr) {
+    for (auto existingListener : listenerContainer.listenerVector_) {
+        if (listener == existingListener) {
             listenerContainer.listenerVector_.erase(listenerContainer.listenerVector_.begin() + index);
 
             if (false == listenerContainer.subVector_.empty()){
@@ -493,7 +497,6 @@ UStatus ZenohUTransport::unregisterListener(const UUri &uri,
 }
 
 void ZenohUTransport::SubHandler(const z_sample_t* sample, void* arg) {
-
     if ((nullptr == sample) || (nullptr == arg)) {
        spdlog::error("Invalid arguments for SubHandler");
        return;

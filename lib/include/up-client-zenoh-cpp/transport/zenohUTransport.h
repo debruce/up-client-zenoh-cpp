@@ -38,7 +38,7 @@ namespace uprotocol::utransport {
         public:
             std::vector<z_owned_subscriber_t> subVector_;
             std::vector<z_owned_queryable_t> queryVector_;
-            std::vector<const uprotocol::utransport::UListener*> listenerVector_;
+            std::vector<uprotocol::utransport::UListener> listenerVector_;
     };
 
     class ZenohUTransport : public uprotocol::utransport::UTransport {
