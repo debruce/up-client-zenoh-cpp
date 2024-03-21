@@ -37,6 +37,20 @@ using namespace uprotocol::uuid;
 using namespace uprotocol::v1;
 using namespace uprotocol::utransport;
 
+template<typename T, typename... U>
+static size_t funcTargetAddress(std::function<T(U...)> f) {
+    typedef T(fnType)(U...);
+    fnType ** fnPointer = f.template target<fnType*>();
+    return (size_t) *fnPointer;
+}
+
+template <typename LHS, typename RHS>
+static bool operator==(const std::function<LHS>& lhs, const std::function<RHS>& rhs)
+{
+	return funcTargetAddress(lhs) == funcTargetAddress(rhs);
+}
+
+
 ZenohUTransport& ZenohUTransport::instance(void) noexcept {
 
     static ZenohUTransport zenohUtransport;
@@ -228,12 +242,6 @@ UCode ZenohUTransport::sendPublish(const UPayload &payload,
         z_bytes_t attrBytes = {.len = serializedAttributes.size(), .start = serializedAttributes.data()};
         z_bytes_map_insert_by_alias(&map, z_bytes_new("attributes"), attrBytes);
     
-        // Publish the message
-        // cout << "calling z_publisher_put uri=" << LongUriSerializer::serialize(attributes.source())
-        //     << " hash=" << uriHash
-        //     << " pub=" << pub._0[0] << ' ' << pub._0[1] << ' ' << pub._0[2] << ' ' << pub._0[3] << ' ' << pub._0[4] << pub._0[5] << ' ' << pub._0[6]
-        //     << " size=" << payload.size()
-        //     << endl;
         if (0 != z_publisher_put(z_loan(pub), payload.data(), payload.size(), &options)) {
             // cout << "z_publiusher_put failed" << endl;
             spdlog::error("z_publisher_put failed");
@@ -342,8 +350,6 @@ UStatus ZenohUTransport::registerListener(const UUri &uri,
 
         auto uriHash = std::hash<std::string>{}(LongUriSerializer::serialize(uri));
 
-
-
         // check if URI exists 
         if (listenerMap_.find(uriHash) != listenerMap_.end()) {
 
@@ -436,8 +442,6 @@ UStatus ZenohUTransport::unregisterListener(const UUri &uri,
 
     UStatus status;
 
-    std::shared_ptr<ListenerContainer> listenerContainer;
-
     if (0 == refCount_) {
         spdlog::error("ZenohUTransport is not initialized");
         status.set_code(UCode::UNAVAILABLE);
@@ -452,28 +456,31 @@ UStatus ZenohUTransport::unregisterListener(const UUri &uri,
 
     auto uriHash = std::hash<std::string>{}(LongUriSerializer::serialize(uri));
 
-    if (listenerMap_.find(uriHash) == listenerMap_.end()) {
+    auto uriIter = listenerMap_.find(uriHash);
+    if (uriIter == listenerMap_.end()) {
         status.set_code(UCode::INVALID_ARGUMENT);
         return status;
     }
 
-    listenerContainer = listenerMap_[uriHash];
+    auto& listenerContainer = *uriIter->second;
 
-    int32_t index = 0;
+    size_t index = 0;
 
     /* need to check with who the listener is associated */
-    for (const UListener *existingListenerPtr : listenerContainer->listenerVector_) {
+    for (const UListener *existingListenerPtr : listenerContainer.listenerVector_) {
+        using namespace std;
+        cout << "*existingListenerPtr = " << typeid(*existingListenerPtr).name() << endl;
+        cout << "listener = " << typeid(listener).name() << endl;
 
         if (&listener == existingListenerPtr) {
+            listenerContainer.listenerVector_.erase(listenerContainer.listenerVector_.begin() + index);
 
-            listenerContainer->listenerVector_.erase(listenerContainer->listenerVector_.begin() + index);
-
-            if (false == listenerContainer->subVector_.empty()){
-                z_undeclare_subscriber(z_move(listenerContainer->subVector_[index]));
-                listenerContainer->subVector_.erase(listenerContainer->subVector_.begin() + index);
+            if (false == listenerContainer.subVector_.empty()){
+                z_undeclare_subscriber(z_move(listenerContainer.subVector_[index]));
+                listenerContainer.subVector_.erase(listenerContainer.subVector_.begin() + index);
             } else {
-                z_undeclare_queryable(z_move(listenerContainer->queryVector_[index]));
-                listenerContainer->queryVector_.erase(listenerContainer->queryVector_.begin() + index);
+                z_undeclare_queryable(z_move(listenerContainer.queryVector_[index]));
+                listenerContainer.queryVector_.erase(listenerContainer.queryVector_.begin() + index);
             }
             break;
         }
