@@ -74,8 +74,7 @@ namespace uprotocol::utransport {
             * @return Returns OKSTATUS if the payload has been successfully sent (ACK'ed), otherwise it
             * returns FAILSTATUS with the appropriate failure.
             */
-            uprotocol::v1::UStatus send(const uprotocol::utransport::UPayload &payload,
-                                        const uprotocol::v1::UAttributes &attributes) noexcept;
+            uprotocol::v1::UStatus send(const uprotocol::utransport::UMessage &message) noexcept;
 
             /**
             * Register listener to be called when UPayload is received for the specific topic.
@@ -112,11 +111,9 @@ namespace uprotocol::utransport {
             static void SubHandler(const z_sample_t* sample,
                                 void* arg);
 
-            uprotocol::v1::UCode sendPublish(const uprotocol::utransport::UPayload &payload,
-                                            const uprotocol::v1::UAttributes &attributes) noexcept;
+            uprotocol::v1::UCode sendPublish(const uprotocol::utransport::UMessage &message) noexcept;
 
-            uprotocol::v1::UCode sendQueryable(const uprotocol::utransport::UPayload &payload,
-                                            const uprotocol::v1::UAttributes &attributes) noexcept;
+            uprotocol::v1::UCode sendQueryable(const uprotocol::utransport::UMessage &message) noexcept;
 
             uprotocol::v1::UCode mapEncoding(const uprotocol::utransport::UPayloadFormat &payloadFormat, 
                                             z_encoding_t &encoding) noexcept;
