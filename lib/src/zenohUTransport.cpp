@@ -185,7 +185,6 @@ UStatus ZenohUTransport::send(const UMessage &message) noexcept {
 UCode ZenohUTransport::sendPublish(const UMessage &message) noexcept {
 
     UCode status = UCode::UNAVAILABLE;
-    // using namespace std;
     do {
       
         /* get hash and check if the publisher for the URI is already exists */
@@ -201,7 +200,6 @@ UCode ZenohUTransport::sendPublish(const UMessage &message) noexcept {
                 pub = handleInfo->second;
             } else {
                 pub = z_declare_publisher(z_loan(session_), z_keyexpr(std::to_string(uriHash).c_str()), nullptr);
-                // cout << "called z_declare_publisher and got " << pub._0[0] << ' ' << pub._0[1] << ' ' << pub._0[2] << ' ' << pub._0[3] << ' ' << pub._0[4] << pub._0[5] << ' ' << pub._0[6] << endl;
 
                 if (false == z_check(pub)) {
                     spdlog::error("Unable to declare Publisher for key expression!");
