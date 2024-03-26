@@ -48,23 +48,29 @@ class RpcServer : public UListener {
 
             status.set_code(UCode::OK);
             
-            UAttributesBuilder builder(message.attributes().id(), UMessageType::UMESSAGE_TYPE_RESPONSE, UPriority::UPRIORITY_CS0);
-            builder.setSource(rpcUri);
+            UAttributesBuilder builder(message.attributes().source(),
+                                       message.attributes().id(), 
+                                       UMessageType::UMESSAGE_TYPE_RESPONSE, 
+                                       UPriority::UPRIORITY_CS0);
+
             UAttributes responseAttributes = builder.build();
             message.setAttributes(responseAttributes);
+
+            UPayload outPayload = message.payload();
+
+            UMessage respMessage(outPayload, responseAttributes);
 
             if (nullptr != message.payload().data()) {
 
                 std::string cmd(message.payload().data(), message.payload().data() + message.payload().size());
 
                 if ("No Response" != cmd) {
-                    return ZenohUTransport::instance().send(message);
+                    return ZenohUTransport::instance().send(respMessage);
                 }
             } else {
-                 return ZenohUTransport::instance().send(message);
+                return ZenohUTransport::instance().send(respMessage);
             }
-
-                                
+                   
             return status;
         }
 };
@@ -102,7 +108,6 @@ class TestRPcClient : public ::testing::Test {
             }
 
             ZenohUTransport::instance().registerListener(rpcUri, TestRPcClient::rpcListener);
-
         }
 
         // TearDownTestSuite() is called after all tests in the test suite
@@ -203,7 +208,7 @@ TEST_F(TestRPcClient, maxSimultaneousRequests) {
     }
 
     /* wait for al futures to return */
-    sleep(5);
+    sleep(10);
 
     std::future<RpcResponse> future = ZenohRpcClient::instance().invokeMethod(rpcUri, payload, options);
 
@@ -227,7 +232,7 @@ TEST_F(TestRPcClient, invokeMethodWithNullResponse) {
     
     EXPECT_EQ(response.status.code(), UCode::OK);
 
-    EXPECT_EQ(response.message.payload().data(), nullptr);
+    EXPECT_EQ(response.message.payload().size(), 0);
 }
 
 TEST_F(TestRPcClient, invokeMethodWithResponse) {
@@ -252,7 +257,6 @@ TEST_F(TestRPcClient, invokeMethodWithResponse) {
 
     EXPECT_NE(response.message.payload().data(), nullptr);
     EXPECT_NE(response.message.payload().size(), 0);
-
 }
 
 TEST_F(TestRPcClient, invokeMethodWithCbResponse) {
@@ -269,8 +273,24 @@ TEST_F(TestRPcClient, invokeMethodWithCbResponse) {
 
     auto status = ZenohRpcClient::instance().invokeMethod(rpcUri, payload, options, responseListener);
 
-    EXPECT_EQ(status.code(), UCode::OK);
+    EXPECT_EQ(status.code(), UCode::OK);  
+}
+
+TEST_F(TestRPcClient, invokeMethodWithCbResponseFailure) {
     
+    std::string message = "Response";
+    std::vector<uint8_t> data(message.begin(), message.end());
+
+    UPayload payload(data.data(), data.size(), UPayloadType::VALUE);    
+
+    CallOptions options;
+
+    options.set_priority(UPriority::UPRIORITY_CS0);
+    options.set_ttl(1000);
+
+    auto status = ZenohRpcClient::instance().invokeMethod(rpcUri, payload, options, responseListener);
+
+    EXPECT_NE(status.code(), UCode::OK);  
 }
 
 int main(int argc, char **argv) {

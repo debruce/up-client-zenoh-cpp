@@ -167,26 +167,29 @@ UStatus ZenohUTransport::send(const UMessage &message) noexcept {
         return status;
     }
 
-    if (false == isRPCMethod(message.attributes().source().resource())) {
+    if (UMessageType::UMESSAGE_TYPE_PUBLISH == message.attributes().type()){
         status.set_code(sendPublish(message));
-    } else {
+    } else if (UMessageType::UMESSAGE_TYPE_RESPONSE == message.attributes().type()) {
+         if (false == isRPCMethod(message.attributes().sink())) {
+            spdlog::error("message defined as response but the URI is not RPC ");
+            return status;
+         }
         status.set_code(sendQueryable(message));
+    } else {
+        spdlog::error("message not supported");
     }
 
     return status;
 }
+
 UCode ZenohUTransport::sendPublish(const UMessage &message) noexcept {
+
     UCode status = UCode::UNAVAILABLE;
     // using namespace std;
     do {
-        auto uri = message.attributes().source();
-        if (UMessageType::UMESSAGE_TYPE_PUBLISH != message.attributes().type()) {
-            spdlog::error("Wrong message type = {}", static_cast<int>(message.attributes().type()));
-            return UCode::INVALID_ARGUMENT;
-        }
-
+      
         /* get hash and check if the publisher for the URI is already exists */
-        auto uriHash = std::hash<std::string>{}(LongUriSerializer::serialize(uri));
+        auto uriHash = std::hash<std::string>{}(LongUriSerializer::serialize(message.attributes().source()));
         auto handleInfo = pubHandleMap_.find(uriHash);
         z_owned_publisher_t pub;
 
@@ -227,13 +230,7 @@ UCode ZenohUTransport::sendPublish(const UMessage &message) noexcept {
         z_bytes_map_insert_by_alias(&map, z_bytes_new("attributes"), attrBytes);
     
         // Publish the message
-        // cout << "calling z_publisher_put uri=" << LongUriSerializer::serialize(attributes.source())
-        //     << " hash=" << uriHash
-        //     << " pub=" << pub._0[0] << ' ' << pub._0[1] << ' ' << pub._0[2] << ' ' << pub._0[3] << ' ' << pub._0[4] << pub._0[5] << ' ' << pub._0[6]
-        //     << " size=" << payload.size()
-        //     << endl;
         if (0 != z_publisher_put(z_loan(pub), message.payload().data(), message.payload().size(), &options)) {
-            // cout << "z_publiusher_put failed" << endl;
             spdlog::error("z_publisher_put failed");
             z_drop(z_move(map));
             break;
@@ -241,18 +238,15 @@ UCode ZenohUTransport::sendPublish(const UMessage &message) noexcept {
 
         z_drop(z_move(map));
         status = UCode::OK;
+        
     } while (0);
 
     pendingSendRefCnt_.fetch_sub(1);
 
     return status;
 }
-UCode ZenohUTransport::sendQueryable(const UMessage &message) noexcept {
 
-    if (UMessageType::UMESSAGE_TYPE_RESPONSE != message.attributes().type()) {
-        spdlog::error("Wrong message type = {}", static_cast<int>(message.attributes().type()));
-        return UCode::INVALID_ARGUMENT;
-    }
+UCode ZenohUTransport::sendQueryable(const UMessage &message) noexcept {
 
     auto uuidStr = UuidSerializer::serializeToString(message.attributes().id());
     if (queryMap_.find(uuidStr) == queryMap_.end()) {
