@@ -200,7 +200,6 @@ UCode ZenohUTransport::sendPublish(const UMessage &message) noexcept {
                 pub = handleInfo->second;
             } else {
                 pub = z_declare_publisher(z_loan(session_), z_keyexpr(std::to_string(uriHash).c_str()), nullptr);
-
                 if (false == z_check(pub)) {
                     spdlog::error("Unable to declare Publisher for key expression!");
                     break;
