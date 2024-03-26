@@ -193,18 +193,14 @@ std::future<RpcResponse> ZenohRpcClient::invokeMethodInternal(const UUri &topic,
         status.set_code(UCode::INTERNAL);
 
         auto uriHash = std::hash<std::string>{}(LongUriSerializer::serialize(topic));
-        auto uuid = Uuidv8Factory::create();
-    
-        UAttributesBuilder builder(topic, uuid, UMessageType::UMESSAGE_TYPE_REQUEST, options.priority());
-
-        if (options.has_ttl()) {
-            builder.setTTL(options.ttl());
-            opts.timeout_ms = options.ttl();
-        } else {
-            opts.timeout_ms = requestTimeoutMs_;
-        }
-
-        UAttributes attributes = builder.build();
+        // this source/sink business is confusing me here
+        // the source field being the rpc server is illogical
+        // and, is it okay that the true source of the rpc request is left empty?
+        // this would be equalivalent to the prior implementation
+        auto attributes = UAttributesBuilder::request(topic,
+            UUri(),
+            options.priority(), options.has_ttl() ? options.ttl() : requestTimeoutMs_
+            ).build();
 
         // Serialize UAttributes
         size_t attrSize = attributes.ByteSizeLong();
