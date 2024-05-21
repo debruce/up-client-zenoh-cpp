@@ -13,14 +13,7 @@ using namespace PluggableTransport;
 
 int main(int argc, char* argv[])
 {
-    if (argc < 2) {
-        cerr << "Must provide path to impl library." << endl;
-        exit(-1);
-    }
-
-    PluginApi::WhiteList white_list{"6f4e764446ae6c636363448bcfe3e32d"};
-    auto plugin =  PluginApi(argv[1]); //, white_list);
-    auto transport = Transport(plugin, "start_doc");
+    auto transport = Transport("start_doc");
 
     auto rpc_server_callback = [&](const string& sending_topic, const string& listening_topic, const Message& message) {
         cout << "rpc callback with"
@@ -30,7 +23,7 @@ int main(int argc, char* argv[])
             << " attributes=" << message.attributes << endl;
         return Message{"hello", "world"};
     };
-    auto rpc_server = RpcServer(transport, "demo/rpc/*", rpc_server_callback, 4, "rpcserv");
+    auto rpc_server = RpcServer(transport, "demo/rpc/*", rpc_server_callback);
     sleep(10000);
 }
 

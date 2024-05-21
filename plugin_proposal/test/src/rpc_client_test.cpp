@@ -21,14 +21,7 @@ string genString(const char* fmt, Args... args)
 
 int main(int argc, char* argv[])
 {
-    if (argc < 2) {
-        cerr << "Must provide path to impl library." << endl;
-        exit(-1);
-    }
-
-    PluginApi::WhiteList white_list{"6f4e764446ae6c636363448bcfe3e32d"};
-    auto plugin =  PluginApi(argv[1]); //, white_list);
-    auto transport = Transport(plugin, "start_doc");
+    auto transport = Transport("start_doc");
 
     for (auto i = 0; i < 5; i++) {
         using namespace std::chrono_literals;

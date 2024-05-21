@@ -47,9 +47,7 @@ string genString(const char* fmt, Args... args)
 
 void test(const string& dll_path)
 {
-    PluginApi::WhiteList white_list{"6f4e764446ae6c636363448bcfe3e32d"};
-    auto plugin =  PluginApi(dll_path); //, white_list);
-    auto transport = Transport(plugin, "start_doc");
+    auto transport = Transport("start_doc");
 
     {
         auto callback = [](const string& sending_topic, const string& listening_topic, const Message& message) {
@@ -59,9 +57,9 @@ void test(const string& dll_path)
                 << " payload=" << message.payload
                 << " attributes=" << message.attributes << endl;
         };
-        auto subscriber = Subscriber(transport, "upl/*", callback, 4, "sub");
-        auto p1 = Publisher(transport, "upl/p1", "p1");
-        auto p2 = Publisher(transport, "upl/p2", "p2");
+        auto subscriber = Subscriber(transport, "upl/*", callback);
+        auto p1 = Publisher(transport, "upl/p1");
+        auto p2 = Publisher(transport, "upl/p2");
 
         for (auto i = 0; i < 5; i++) {
             cout << endl << "client code pubishing " << i << endl;
@@ -80,7 +78,7 @@ void test(const string& dll_path)
                 << " attributes=" << message.attributes << endl;
             return Message{"hello", "world"};
         };
-        auto rpc_server = RpcServer(transport, "demo/rpc/*", rpc_server_callback, 4, "rpcserv");
+        auto rpc_server = RpcServer(transport, "demo/rpc/*", rpc_server_callback);
 
         for (auto i = 0; i < 5; i++) {
             using namespace std::chrono_literals;

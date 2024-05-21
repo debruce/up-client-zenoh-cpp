@@ -14,14 +14,12 @@ using namespace PluggableTransport;
 
 int main(int argc, char* argv[])
 {
-    if (argc < 3) {
+    if (argc < 2) {
         cerr << "Must provide path to impl library and topic to subscribe to." << endl;
         exit(-1);
     }
     
-    PluginApi::WhiteList white_list{"6f4e764446ae6c636363448bcfe3e32d"};
-    auto plugin =  PluginApi(argv[1]); //, white_list);
-    auto transport = Transport(plugin, "start_doc");
+    auto transport = Transport("start_doc");
 
     auto callback = [](const string& sending_topic, const string& listening_topic, const Message& message) {
         cout << "subscriber callback with"
@@ -31,7 +29,7 @@ int main(int argc, char* argv[])
             << " attributes=" << message.attributes << endl;
     };
 
-    auto subscriber = Subscriber(transport, argv[2], callback, 4, "sub");
+    auto subscriber = Subscriber(transport, argv[1], callback);
     sleep(10000);
 }
 
