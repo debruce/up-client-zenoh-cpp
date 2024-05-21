@@ -31,12 +31,12 @@ struct TraceBase {
     }
 };
 
-struct SessionImpl : public SessionApi, TraceBase {
+struct TransportImpl : public TransportApi, TraceBase {
     string start_doc;
     zenohc::Session session;
     string trace_name;
 
-    SessionImpl(const string& start_doc, const string& trace_name) : start_doc(start_doc), session(inst()), TraceBase(trace_name)
+    TransportImpl(const string& start_doc, const string& trace_name) : start_doc(start_doc), session(inst()), TraceBase(trace_name)
     {
         using namespace std;
         cout << "trace_name = " << trace_name << endl;
@@ -45,16 +45,16 @@ struct SessionImpl : public SessionApi, TraceBase {
 };
 
 struct PublisherImpl : public PublisherApi, TraceBase {
-    shared_ptr<SessionImpl> session;
+    shared_ptr<TransportImpl> transport;
     string sending_topic;
     string trace_name;
     z_owned_publisher_t handle;
     
-    PublisherImpl(shared_ptr<SessionApi> session_base, const string& sending_topic, const string& trace_name) : sending_topic(sending_topic), TraceBase(trace_name)
+    PublisherImpl(shared_ptr<TransportApi> transport_base, const string& sending_topic, const string& trace_name) : sending_topic(sending_topic), TraceBase(trace_name)
     {
-        session = dynamic_pointer_cast<SessionImpl>(session_base);
+        transport = dynamic_pointer_cast<TransportImpl>(transport_base);
         TRACE(this, "");
-        handle = z_declare_publisher(session->session.loan(), z_keyexpr(sending_topic.c_str()), nullptr);
+        handle = z_declare_publisher(transport->session.loan(), z_keyexpr(sending_topic.c_str()), nullptr);
         if (!z_check(handle)) throw std::runtime_error("Cannot declare publisher");
     }
 
@@ -92,7 +92,7 @@ struct SubInfo {
 };
 
 struct SubscriberImpl : public SubscriberApi, TraceBase {
-    shared_ptr<SessionImpl> session;
+    shared_ptr<TransportImpl> transport;
     unique_ptr<zenohc::Subscriber> handle;
     string listening_topic;
     Fifo<SubInfo> fifo;
@@ -117,14 +117,14 @@ struct SubscriberImpl : public SubscriberApi, TraceBase {
         TRACE(this, "");
     }
 
-    SubscriberImpl(shared_ptr<SessionApi> session_base, const std::string& listening_topic, SubscriberServerCallback callback, size_t thread_count, const string& trace_name)
+    SubscriberImpl(shared_ptr<TransportApi> transport_base, const std::string& listening_topic, SubscriberServerCallback callback, size_t thread_count, const string& trace_name)
         : listening_topic(listening_topic), callback(callback), TraceBase(trace_name)
     {
-        session = dynamic_pointer_cast<SessionImpl>(session_base);
+        transport = dynamic_pointer_cast<TransportImpl>(transport_base);
         TRACE(this, "");
         handle = std::make_unique<zenohc::Subscriber>(
             zenohc::expect<zenohc::Subscriber>(
-                session->session.declare_subscriber(
+                transport->session.declare_subscriber(
                     listening_topic,
                     [&](const zenohc::Sample& arg) { this->handler(arg); } )));
         pool = make_unique<ThreadPool>([&]() { worker(); }, thread_count);
@@ -157,13 +157,13 @@ static z_bytes_t pack(const string_view& od)
 }
 
 struct RpcClientImpl : public RpcClientApi {
-    shared_ptr<SessionImpl> session;
+    shared_ptr<TransportImpl> transport;
     z_owned_reply_channel_t channel;
     
-    RpcClientImpl(shared_ptr<SessionApi> session_base, const string& sending_topic, const Message& message, const std::chrono::seconds& timeout)
+    RpcClientImpl(shared_ptr<TransportApi> transport_base, const string& sending_topic, const Message& message, const std::chrono::seconds& timeout)
     {
-        session = dynamic_pointer_cast<SessionImpl>(session_base);
-        TRACE(session, "");
+        transport = dynamic_pointer_cast<TransportImpl>(transport_base);
+        TRACE(transport, "");
         z_keyexpr_t keyexpr = z_keyexpr(sending_topic.c_str());
         if (!z_check(keyexpr)) throw std::runtime_error("Not a valid key expression");
         channel = zc_reply_fifo_new(16);
@@ -173,18 +173,18 @@ struct RpcClientImpl : public RpcClientApi {
         z_bytes_map_insert_by_alias(&attrs, z_bytes_new("attributes"), pack(message.attributes));
         opts.attachment = z_bytes_map_as_attachment(&attrs);
         opts.timeout_ms = chrono::milliseconds(timeout).count();
-        z_get(session->session.loan(), keyexpr, "", z_move(channel.send), &opts);
+        z_get(transport->session.loan(), keyexpr, "", z_move(channel.send), &opts);
     }
 
     ~RpcClientImpl()
     {
-        TRACE(session, "");
+        TRACE(transport, "");
         z_drop(z_move(channel));
     }
 
     tuple<string, Message> operator()()
     {
-        TRACE(session, "");
+        TRACE(transport, "");
         std::string src;
         string payload, attributes;
         z_owned_reply_t reply = z_reply_null();
@@ -234,7 +234,7 @@ struct RpcInfo {
 };
 
 struct RpcServerImpl : public RpcServerApi, TraceBase {
-    shared_ptr<SessionImpl> session;
+    shared_ptr<TransportImpl> transport;
     z_owned_queryable_t qable;
     Fifo<RpcInfo> fifo;
     unique_ptr<ThreadPool> pool;
@@ -258,7 +258,7 @@ struct RpcServerImpl : public RpcServerApi, TraceBase {
         TRACE(this, "");
         while (true) {
             auto ptr = fifo.pull();
-            TRACE(session, "");
+            TRACE(transport, "");
             if (ptr == nullptr) break;
             auto results = callback(ptr->sending_topic, listening_topic, ptr->message);
             if (results) {
@@ -278,13 +278,13 @@ struct RpcServerImpl : public RpcServerApi, TraceBase {
         TRACE(this, "");
     }
 
-    RpcServerImpl(shared_ptr<SessionApi> session_base, const std::string& listening_topic, RpcServerCallback callback, size_t thread_count, const string& trace_name)
+    RpcServerImpl(shared_ptr<TransportApi> transport_base, const std::string& listening_topic, RpcServerCallback callback, size_t thread_count, const string& trace_name)
         : listening_topic(listening_topic), callback(callback), TraceBase(trace_name)
     {
-        session = dynamic_pointer_cast<SessionImpl>(session_base);
+        transport = dynamic_pointer_cast<TransportImpl>(transport_base);
         TRACE(this, "");
         z_owned_closure_query_t closure = z_closure(_handler, NULL, this);
-        qable = z_declare_queryable(session->session.loan(), z_keyexpr(listening_topic.c_str()), z_move(closure), NULL);
+        qable = z_declare_queryable(transport->session.loan(), z_keyexpr(listening_topic.c_str()), z_move(closure), NULL);
         if (!z_check(qable)) throw std::runtime_error("Unable to create queryable.");
         pool = make_unique<ThreadPool>([&]() { worker(); }, thread_count);
     }
@@ -298,11 +298,11 @@ struct RpcServerImpl : public RpcServerApi, TraceBase {
 };
 
 Factories factories = {
-    [](const auto start_doc, const auto trace_name) { return make_shared<SessionImpl>(start_doc, trace_name); },
-    [](auto session_base, auto ...args) { return make_shared<PublisherImpl>(session_base, args...); },
-    [](auto session_base, auto ...args) { return make_shared<SubscriberImpl>(session_base, args...); },
-    [](auto session_base, auto ...args) { return make_shared<RpcClientImpl>(session_base, args...); },
-    [](auto session_base, auto ...args) { return make_shared<RpcServerImpl>(session_base, args...); },
+    [](const auto start_doc, const auto trace_name) { return make_shared<TransportImpl>(start_doc, trace_name); },
+    [](auto transport_base, auto ...args) { return make_shared<PublisherImpl>(transport_base, args...); },
+    [](auto transport_base, auto ...args) { return make_shared<SubscriberImpl>(transport_base, args...); },
+    [](auto transport_base, auto ...args) { return make_shared<RpcClientImpl>(transport_base, args...); },
+    [](auto transport_base, auto ...args) { return make_shared<RpcServerImpl>(transport_base, args...); },
 };
 
 struct Loader : public TraceBase {

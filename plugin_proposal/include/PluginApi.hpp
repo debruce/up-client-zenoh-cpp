@@ -10,8 +10,8 @@ namespace PluggableTransport {
 //
 // This is the base type for the common session object.
 //
-struct SessionApi {
-   virtual ~SessionApi() {}
+struct TransportApi {
+   virtual ~TransportApi() {}
 };
 
 //
@@ -37,7 +37,7 @@ using RpcServerCallback = std::function<std::optional<RpcReply> (const std::stri
 // This makes a type alias for the getter lambdas implemented in the implementation module.
 //
 template <typename CLS, class... Args>
-using FactoryGetter = std::function< std::shared_ptr<CLS> (std::shared_ptr<SessionApi>, Args...) >;
+using FactoryGetter = std::function< std::shared_ptr<CLS> (std::shared_ptr<TransportApi>, Args...) >;
 
 
 //
@@ -67,7 +67,7 @@ struct RpcServerApi {
 //
 
 struct Factories {
-   std::function< std::shared_ptr<SessionApi> (const std::string&, const std::string&)> get_session;
+   std::function< std::shared_ptr<TransportApi> (const std::string&, const std::string&)> get_session;
    PublisherApi::FactoryParams get_publisher;
    SubscriberApi::FactoryParams get_subscriber;
    RpcClientApi::FactoryParams get_rpc_client;
@@ -79,16 +79,16 @@ using PluginApi = FactoryPlugin<Factories>;
 //
 // Below this point are the thin wrapper classes that hold the pImpls pointing back to the dll implementation
 //
-class Session {
+class Transport {
    PluginApi plugin;
-   std::shared_ptr<SessionApi> pImpl;
+   std::shared_ptr<TransportApi> pImpl;
 public:
    friend class Publisher;
    friend class Subscriber;
    friend class RpcClient;
    friend class RpcServer;
 
-   Session(PluginApi plugin, const std::string& start_doc, const std::string& trace_name = "session")
+   Transport(PluginApi plugin, const std::string& start_doc, const std::string& trace_name = "session")
       : plugin(plugin), pImpl(plugin->get_session(start_doc, trace_name)) {}
 };
 
@@ -96,8 +96,8 @@ public:
 class Publisher {
    std::shared_ptr<PublisherApi> pImpl;
 public:
-   Publisher(Session session, const std::string& topic, const std::string& trace_name = "publisher")
-      : pImpl(session.plugin->get_publisher(session.pImpl, topic, trace_name)) {}
+   Publisher(Transport transport, const std::string& topic, const std::string& trace_name = "publisher")
+      : pImpl(transport.plugin->get_publisher(transport.pImpl, topic, trace_name)) {}
 
    void operator()(const Message& message) { (*pImpl)(message); }
 };
@@ -105,30 +105,30 @@ public:
 class Subscriber {
    std::shared_ptr<SubscriberApi> pImpl;
 public:
-   Subscriber(Session session, const std::string& topic, SubscriberServerCallback callback, size_t thread_count = 4, const std::string& trace_name = "subscriber")
-      : pImpl(session.plugin->get_subscriber(session.pImpl, topic, callback, thread_count, trace_name)) {}
+   Subscriber(Transport transport, const std::string& topic, SubscriberServerCallback callback, size_t thread_count = 4, const std::string& trace_name = "subscriber")
+      : pImpl(transport.plugin->get_subscriber(transport.pImpl, topic, callback, thread_count, trace_name)) {}
 };
 
 class RpcClient {
    std::shared_ptr<RpcClientApi> pImpl;
 public:
-   RpcClient(Session session, const std::string& topic, const Message& message, const std::chrono::seconds& timeout)
-      : pImpl(session.plugin->get_rpc_client(session.pImpl, topic, message, timeout)) {}
+   RpcClient(Transport transport, const std::string& topic, const Message& message, const std::chrono::seconds& timeout)
+      : pImpl(transport.plugin->get_rpc_client(transport.pImpl, topic, message, timeout)) {}
 
    std::tuple<std::string, Message> operator()() { return (*pImpl)(); }
 };
 
-std::future<std::tuple<std::string, Message>> queryCall(Session s, std::string expr, const Message& message, const std::chrono::seconds& timeout)
+std::future<std::tuple<std::string, Message>> queryCall(Transport transport, std::string expr, const Message& message, const std::chrono::seconds& timeout)
 {
     auto msg = std::make_shared<Message>(message);
-    return std::async([=]() { return RpcClient(s, expr, *msg, timeout)(); } );
+    return std::async([=]() { return RpcClient(transport, expr, *msg, timeout)(); } );
 }
 
 class RpcServer {
    std::shared_ptr<RpcServerApi> pImpl;
 public:
-   RpcServer(Session session, const std::string& topic, RpcServerCallback callback, size_t thread_count = 4, const std::string& trace_name = "subscriber")
-      : pImpl(session.plugin->get_rpc_server(session.pImpl, topic, callback, thread_count, trace_name)) {}
+   RpcServer(Transport transport, const std::string& topic, RpcServerCallback callback, size_t thread_count = 4, const std::string& trace_name = "subscriber")
+      : pImpl(transport.plugin->get_rpc_server(transport.pImpl, topic, callback, thread_count, trace_name)) {}
 
 };
 

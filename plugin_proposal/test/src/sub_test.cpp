@@ -21,7 +21,7 @@ int main(int argc, char* argv[])
     
     PluginApi::WhiteList white_list{"6f4e764446ae6c636363448bcfe3e32d"};
     auto plugin =  PluginApi(argv[1]); //, white_list);
-    auto session = Session(plugin, "start_doc");
+    auto transport = Transport(plugin, "start_doc");
 
     auto callback = [](const string& sending_topic, const string& listening_topic, const Message& message) {
         cout << "subscriber callback with"
@@ -31,7 +31,7 @@ int main(int argc, char* argv[])
             << " attributes=" << message.attributes << endl;
     };
 
-    auto subscriber = Subscriber(session, argv[2], callback, 4, "sub");
+    auto subscriber = Subscriber(transport, argv[2], callback, 4, "sub");
     sleep(10000);
 }
 

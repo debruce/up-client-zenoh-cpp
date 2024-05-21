@@ -26,12 +26,12 @@ PYBIND11_MODULE(pyPluginApi, m)
         .def(py::init<string>())
         ;
 
-    py::class_<Session>(m, "Session")
+    py::class_<Transport>(m, "Transport")
         .def(py::init<PluginApi, string, string>())
         ;
 
     py::class_<Publisher>(m, "Publisher")
-        .def(py::init<Session, string, string>())
+        .def(py::init<Transport, string, string>())
         .def("__call__", [](Publisher me, const string& p, const string& a) { me(Message{p, a}); })
         ;
 
@@ -43,15 +43,15 @@ PYBIND11_MODULE(pyPluginApi, m)
         ;
 
      py::class_<Subscriber>(m, "Subscriber")
-        .def(py::init<Session, string, SubscriberServerCallback, size_t, string>())
+        .def(py::init<Transport, string, SubscriberServerCallback, size_t, string>())
         ;
 
     //  py::class_<RpcClientFuture>(m, "RpcClientFuture")
-    //     .def(py::init<Session, string, Message, chrono::seconds>())
+    //     .def(py::init<Transport, string, Message, chrono::seconds>())
     //     .def("get", [](RpcClientFuture me) { return me.get(); })
     //     ;
 
      py::class_<RpcServer>(m, "RpcServer")
-        .def(py::init<Session, string, RpcServerCallback, size_t, string>())
+        .def(py::init<Transport, string, RpcServerCallback, size_t, string>())
         ;
 }
