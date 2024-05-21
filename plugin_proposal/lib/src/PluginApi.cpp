@@ -1,5 +1,6 @@
 #include "PluginApi.hpp"
 #include <iostream>
+#include <map>
 
 namespace PluggableTransport {
 
@@ -43,18 +44,46 @@ RpcServer::RpcServer(Transport transport, const std::string& topic, RpcServerCal
    pImpl = (*getter)(transport, topic, callback);        
 }
 
+}; // PluggableTransport
+
 ///////////////////////////////////////////////////////////////////////////////////
 // Transport
 ///////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<PublisherApi> publisher_getter(Transport transport, const std::string& name);
-std::shared_ptr<SubscriberApi> subscriber_getter(Transport transport, const std::string& topic, SubscriberServerCallback callback);
-std::shared_ptr<RpcClientApi> rpc_client_getter(Transport transport, const std::string& topic, const Message& message, const std::chrono::seconds& timeout);
-std::shared_ptr<RpcServerApi> rpc_server_getter(Transport transport, const string& topic, RpcServerCallback callback);
+namespace Impl_v1 {
+   using namespace PluggableTransport;
+   std::shared_ptr<PublisherApi> publisher_getter(Transport transport, const std::string& name);
+   std::shared_ptr<SubscriberApi> subscriber_getter(Transport transport, const std::string& topic, SubscriberServerCallback callback);
+   std::shared_ptr<RpcClientApi> rpc_client_getter(Transport transport, const std::string& topic, const Message& message, const std::chrono::seconds& timeout);
+   std::shared_ptr<RpcServerApi> rpc_server_getter(Transport transport, const std::string& topic, RpcServerCallback callback);
+};
 
+namespace Impl_v2 {
+   using namespace PluggableTransport;
+   std::shared_ptr<PublisherApi> publisher_getter(Transport transport, const std::string& name);
+   std::shared_ptr<SubscriberApi> subscriber_getter(Transport transport, const std::string& topic, SubscriberServerCallback callback);
+   std::shared_ptr<RpcClientApi> rpc_client_getter(Transport transport, const std::string& topic, const Message& message, const std::chrono::seconds& timeout);
+   std::shared_ptr<RpcServerApi> rpc_server_getter(Transport transport, const std::string& topic, RpcServerCallback callback);
+};
+
+namespace PluggableTransport {
 struct Transport::Impl {
-    Impl(const string& start_doc) {
+   map<string, any>  getters;
 
+    Impl(const string& start_doc) {
+      if (start_doc == "v1") {
+         getters["publisher"] = ::Impl_v1::publisher_getter;
+         getters["subscriber"] = ::Impl_v1::subscriber_getter;
+         getters["rpc_client"] = ::Impl_v1::rpc_client_getter;
+         getters["rpc_server"] = ::Impl_v1::rpc_server_getter;
+      }
+      else if (start_doc == "v2") {
+         getters["publisher"] = ::Impl_v2::publisher_getter;
+         getters["subscriber"] = ::Impl_v2::subscriber_getter;
+         getters["rpc_client"] = ::Impl_v2::rpc_client_getter;
+         getters["rpc_server"] = ::Impl_v2::rpc_server_getter;
+      }
+      else throw runtime_error("Unsupported version");
     }
 
     ~Impl() {
@@ -63,10 +92,7 @@ struct Transport::Impl {
 
     any get_factory(const string& name)
     {
-        if (name == "publisher") return publisher_getter;
-        if (name == "subscriber") return subscriber_getter;
-        if (name == "rpc_client") return rpc_client_getter;
-        if (name == "rpc_server") return rpc_server_getter;
+        return getters[name];
         return any();
     }
 };

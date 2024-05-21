@@ -21,7 +21,7 @@ string genString(const char* fmt, Args... args)
 
 int main(int argc, char* argv[])
 {
-    auto transport = Transport("start_doc");
+    auto transport = Transport("v2");
 
     auto p1 = Publisher(transport, "upl/p1");
     auto p2 = Publisher(transport, "upl/p2");

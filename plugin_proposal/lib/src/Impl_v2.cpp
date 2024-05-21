@@ -1,7 +1,7 @@
 #include "PluginApi.hpp"
 #include <iostream>
 
-namespace Impl_v1 {
+namespace Impl_v2 {
 
 using namespace PluggableTransport;
 using namespace std;

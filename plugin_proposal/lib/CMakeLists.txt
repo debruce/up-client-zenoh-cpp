@@ -46,6 +46,6 @@ find_package(OpenSSL REQUIRED)
 
 # find_package(GTest REQUIRED)
 
-add_library(PluginApi src/DllHandle.cpp src/PluginApi.cpp src/Impl_v1.cpp)
+add_library(PluginApi src/DllHandle.cpp src/PluginApi.cpp src/Impl_v1.cpp src/Impl_v2.cpp)
 target_link_libraries(PluginApi PRIVATE ${DL_LIBRARY} OpenSSL::Crypto)
 
